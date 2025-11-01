@@ -17,7 +17,6 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ theme, setTheme }) => {
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    // FIX: Added curly braces to the catch block and removed an extra closing brace to fix syntax errors.
     } catch (error) {
       console.error("Error signing in with Google", error);
     }

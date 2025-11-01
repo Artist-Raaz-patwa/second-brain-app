@@ -13,8 +13,6 @@
     "react-dom": "^19.2.0",
     "@google/genai": "^1.28.0",
     "firebase": "^12.5.0",
-    "react-grid-layout": "1.4.4",
-    "react-resizable": "3.0.5",
     "clsx": "2.1.1"
   },
   "devDependencies": {
