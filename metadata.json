@@ -1,0 +1,5 @@
+{
+  "name": "SecondBrain App",
+  "description": "An all-in-one productivity application that consolidates various tools into a single, streamlined interface. It features a modular design with a left sidebar for tool selection and an AI-powered chatbot in the right sidebar to boost productivity and minimize distractions.",
+  "requestFramePermissions": []
+}
