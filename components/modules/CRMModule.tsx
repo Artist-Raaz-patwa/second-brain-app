@@ -42,7 +42,7 @@ const PieChart = ({ data, currencyFormatter }: { data: { companyName: string, to
     const total = data.reduce((sum, item) => sum + item.totalValue, 0);
     if (total === 0) return <p className="text-sm text-gray-500 dark:text-white/60">No data to display in chart.</p>;
 
-    const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+    const colors = ['#333333', '#555555', '#777777', '#999999', '#BBBBBB', '#DDDDDD'];
     const radius = 80;
     const cx = 100;
     const cy = 100;

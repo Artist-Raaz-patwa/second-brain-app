@@ -10,20 +10,21 @@ interface SettingsModuleProps {
 }
 
 const SettingsModule: React.FC<SettingsModuleProps> = ({ theme, setTheme }) => {
-  const { currentUser } = useAuth();
+  const { currentUser, authAvailable } = useAuth();
   const { currency, setCurrency } = useSettings();
 
   const handleSignIn = async () => {
+    if (!auth) return;
     const provider = new GoogleAuthProvider();
     try {
       await signInWithPopup(auth, provider);
-    // FIX: Added curly braces to the catch block and removed an extra closing brace to fix syntax errors.
     } catch (error) {
       console.error("Error signing in with Google", error);
     }
   };
 
   const handleSignOut = async () => {
+    if (!auth) return;
     try {
       await signOut(auth);
     } catch (error) {
@@ -71,32 +72,38 @@ const SettingsModule: React.FC<SettingsModuleProps> = ({ theme, setTheme }) => {
           </p>
         </div>
         <div className="border-t border-gray-200 dark:border-white/10 p-6">
-          {currentUser ? (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <img src={currentUser.photoURL || undefined} alt={currentUser.displayName || 'User'} className="w-12 h-12 rounded-full" />
-                <div>
-                  <p className="font-semibold text-black dark:text-white">{currentUser.displayName}</p>
-                  <p className="text-sm text-gray-500 dark:text-white/50">{currentUser.email}</p>
+          {authAvailable ? (
+            currentUser ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <img src={currentUser.photoURL || undefined} alt={currentUser.displayName || 'User'} className="w-12 h-12 rounded-full" />
+                  <div>
+                    <p className="font-semibold text-black dark:text-white">{currentUser.displayName}</p>
+                    <p className="text-sm text-gray-500 dark:text-white/50">{currentUser.email}</p>
+                  </div>
                 </div>
-              </div>
-              <button
-                onClick={handleSignOut}
-                className="bg-gray-100 dark:bg-white/10 text-black dark:text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
-              >
-                Sign Out
-              </button>
-            </div>
-          ) : (
-             <div className="flex flex-col items-center justify-center text-center">
-                <p className="text-gray-600 dark:text-white/60 mb-4">Sign in to sync your data across devices.</p>
                 <button
-                    onClick={handleSignIn}
-                    className="w-full max-w-xs bg-white dark:bg-black border border-gray-300 dark:border-white/20 text-black dark:text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-gray-100 dark:hover:bg-white/5 transition-colors flex items-center justify-center gap-3"
+                  onClick={handleSignOut}
+                  className="bg-gray-100 dark:bg-white/10 text-black dark:text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"
                 >
-                    <GoogleIcon />
-                    Sign in with Google
+                  Sign Out
                 </button>
+              </div>
+            ) : (
+               <div className="flex flex-col items-center justify-center text-center">
+                  <p className="text-gray-600 dark:text-white/60 mb-4">Sign in to sync your data across devices.</p>
+                  <button
+                      onClick={handleSignIn}
+                      className="w-full max-w-xs bg-white dark:bg-black border border-gray-300 dark:border-white/20 text-black dark:text-white px-4 py-3 rounded-lg text-sm font-semibold hover:bg-gray-100 dark:hover:bg-white/5 transition-colors flex items-center justify-center gap-3"
+                  >
+                      <GoogleIcon />
+                      Sign in with Google
+                  </button>
+              </div>
+            )
+          ) : (
+             <div className="text-center text-sm text-red-500 dark:text-red-400 p-3 rounded-lg bg-red-50 dark:bg-red-500/10">
+                Authentication is unavailable. The application has not been configured correctly for Firebase.
             </div>
           )}
         </div>
