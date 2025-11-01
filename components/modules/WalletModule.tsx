@@ -2,7 +2,6 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useWalletData } from '../../hooks/useWalletData';
 import { Account, Category, Expense, Budget } from '../../types';
 import { useSettings } from '../../contexts/SettingsContext';
-import { GoogleGenAI } from '@google/genai';
 
 const WalletModule: React.FC = () => {
   const {
@@ -22,13 +21,8 @@ const WalletModule: React.FC = () => {
   const [selectedAccountId, setSelectedAccountId] = useState(accounts[0]?.id || '');
   const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || '');
 
-  // AI State
-  const [isAiLoading, setIsAiLoading] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState('');
-
-
   // Unified Modal State
-  type ModalType = 'editAccount' | 'addAccount' | 'deleteAccount' | 'addBudget' | 'editBudget' | 'deleteBudget' | 'allocateFunds' | 'withdrawFunds' | 'addCategory' | 'editCategory' | 'editExpense' | 'aiAnalysis';
+  type ModalType = 'editAccount' | 'addAccount' | 'deleteAccount' | 'addBudget' | 'editBudget' | 'deleteBudget' | 'allocateFunds' | 'withdrawFunds' | 'addCategory' | 'editCategory' | 'editExpense';
   const [modal, setModal] = useState<{ type: ModalType; data?: any } | null>(null);
 
   // Form State
@@ -126,7 +120,6 @@ const WalletModule: React.FC = () => {
   const closeModal = () => {
     setModal(null);
     setFormState({});
-    setAiAnalysis('');
   };
 
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
@@ -314,41 +307,6 @@ const WalletModule: React.FC = () => {
       return d ? d.toISOString().split('T')[0] : '';
   };
 
-    const handleAnalyzeSpending = async () => {
-        if (sortedExpenses.length < 3) {
-            alert("Please add at least 3 transactions to get an analysis.");
-            return;
-        }
-        if (!process.env.API_KEY) {
-            alert("AI features are disabled. API key is not configured.");
-            return;
-        }
-        openModal('aiAnalysis');
-        setIsAiLoading(true);
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const recentTransactions = sortedExpenses.slice(0, 25).map(e => {
-                const type = e.amount > 0 ? 'Expense' : 'Income';
-                const amount = currencyFormatter.format(Math.abs(e.amount));
-                return `${e.date.split('T')[0]}: [${type}] ${getCategoryName(e.categoryId)} - ${e.description} (${amount})`;
-            }).join('\n');
-
-            const prompt = `Analyze my recent spending based on the following transactions and provide insights. Be encouraging and friendly. Identify my top 2-3 spending categories and suggest one specific, actionable area for potential savings. My currency is ${currency}.\n\nTransactions:\n${recentTransactions}`;
-            
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-pro',
-                contents: prompt,
-            });
-            setAiAnalysis(response.text);
-        } catch (error) {
-            console.error("AI Spending Analysis Error:", error);
-            setAiAnalysis("Sorry, an error occurred while analyzing your spending. Please try again later.");
-        } finally {
-            setIsAiLoading(false);
-        }
-    };
-
-
   const BigGoalCountdown = ({ targetDate }: { targetDate: string }) => {
       const calculateTimeLeft = () => {
           const difference = +new Date(targetDate) - +new Date();
@@ -391,8 +349,6 @@ const WalletModule: React.FC = () => {
   const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} className="w-full bg-white dark:bg-black border border-gray-300 dark:border-white/20 rounded-md px-3 py-2 text-sm text-black dark:text-white placeholder:text-gray-500 dark:placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-black/50 dark:focus:ring-white/50" />;
   const Select = (props: React.SelectHTMLAttributes<HTMLSelectElement>) => <select {...props} className="w-full bg-white dark:bg-black border border-gray-300 dark:border-white/20 rounded-md px-3 py-2 text-sm text-black dark:text-white" />;
   const Button = ({children, ...props}: React.ButtonHTMLAttributes<HTMLButtonElement>) => <button {...props} className="w-full bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-800 dark:hover:bg-white/90 transition-colors">{children}</button>;
-  const AiIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 13a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1 5 0Z"/><path d="M19.5 13a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1 5 0Z"/><path d="M12 22a2.5 2.5 0 0 1-2.5-2.5V18h5v1.5A2.5 2.5 0 0 1 12 22Z"/><path d="M12 2a2.5 2.5 0 0 1 2.5 2.5V6h-5V4.5A2.5 2.5 0 0 1 12 2Z"/><path d="M18 12a2.5 2.5 0 0 1 0-5V4.5a2.5 2.5 0 0 0-5 0V6"/><path d="M6 12a2.5 2.5 0 0 0 0 5v2.5a2.5 2.5 0 0 0 5 0V18"/></svg>;
-
 
   return (
     <>
@@ -477,13 +433,7 @@ const WalletModule: React.FC = () => {
             {/* Budget Goals */}
             <Card><div className="flex justify-between items-center mb-3"><h3 className="text-lg font-semibold tracking-tight">Budget Goals</h3><button onClick={() => openModal('addBudget')} className="bg-gray-100 dark:bg-white/10 text-black dark:text-white px-3 py-1 rounded-md text-sm font-semibold hover:bg-gray-200 dark:hover:bg-white/20">+ New</button></div>{budgets.length > 0 ? (<ul className="space-y-4">{budgets.map(b => {const progress = b.targetAmount > 0 ? Math.min((b.savedAmount / b.targetAmount) * 100, 100) : 0; return (<li key={b.id} className="group"><div className="flex justify-between items-center mb-1"><span className="text-gray-800 dark:text-white/80 font-medium">{b.name}</span><div className="flex items-center gap-2"><span className="text-sm font-mono text-gray-500 dark:text-white/60">{currencyFormatter.format(b.savedAmount)} / {currencyFormatter.format(b.targetAmount)}</span><button onClick={() => openModal('withdrawFunds', b)} className="bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-black dark:text-white rounded-full w-6 h-6 flex items-center justify-center transition-colors" title="Withdraw Funds"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="5" y1="12" x2="19" y2="12"></line></svg></button><button onClick={() => openModal('allocateFunds', b)} className="bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-black dark:text-white rounded-full w-6 h-6 flex items-center justify-center transition-colors" title="Add Funds"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg></button><div className="flex opacity-0 group-hover:opacity-100 transition-opacity"><button onClick={() => openModal('editBudget', b)} className="text-gray-500 dark:text-white/40 hover:text-black dark:hover:text-white" title="Edit Goal"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button><button onClick={() => openModal('deleteBudget', b)} className="text-gray-500 dark:text-white/40 hover:text-red-500" title="Delete Goal"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></div></div><div className="w-full bg-gray-200 dark:bg-white/10 rounded-full h-2"><div className="bg-black dark:bg-white h-2 rounded-full" style={{ width: `${progress}%` }}></div></div></li>)})}</ul>) : <p className="text-sm text-center text-gray-500 dark:text-white/40 py-4">No budget goals added.</p>}</Card>
             {/* Recent Transactions */}
-            <Card>
-                <div className="flex justify-between items-center mb-3">
-                    <h3 className="text-lg font-semibold tracking-tight">Recent Transactions</h3>
-                    <button onClick={handleAnalyzeSpending} disabled={sortedExpenses.length < 3} className="flex items-center gap-2 bg-gray-100 dark:bg-white/10 text-black dark:text-white px-3 py-1 rounded-md text-sm font-semibold hover:bg-gray-200 dark:hover:bg-white/20 transition-colors disabled:opacity-50" title="Analyze with AI"><AiIcon/>Analyze</button>
-                </div>
-                <div className="overflow-y-auto flex-1">{sortedExpenses.length > 0 ? (<ul className="space-y-1">{sortedExpenses.slice(0, 50).map(exp => (<li key={exp.id} className="flex justify-between items-center p-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/5 group"><div><p className="font-medium text-black dark:text-white">{exp.description}</p><p className="text-xs text-gray-500 dark:text-white/50">{getCategoryName(exp.categoryId)} · {getAccountName(exp.accountId)} · {parseDate(exp.date)?.toLocaleDateString() ?? 'Invalid Date'}</p></div><div className="flex items-center gap-3">{exp.amount > 0 ? (<span className="font-mono text-gray-700 dark:text-white/80">-{currencyFormatter.format(exp.amount)}</span>) : (<span className="font-mono text-green-600 dark:text-green-400">+{currencyFormatter.format(Math.abs(exp.amount))}</span>)}<div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">{exp.categoryId !== 'internal-transfer' && (<button onClick={() => openModal('editExpense', { ...exp, amount: Math.abs(exp.amount), date: dateToInputValue(exp.date) })} className="text-gray-500 dark:text-white/40 hover:text-black dark:hover:text-white" title="Edit Expense"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>)}<button onClick={() => handleDeleteExpense(exp)} className="text-gray-500 dark:text-white/40 hover:text-red-500" title="Delete Expense"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></div></li>))}</ul>) : <div className="flex h-full items-center justify-center text-center text-gray-500 dark:text-white/40"><p>No transactions yet.</p></div>}</div>
-            </Card>
+            <Card><h3 className="text-lg font-semibold tracking-tight mb-3">Recent Transactions</h3><div className="overflow-y-auto flex-1">{sortedExpenses.length > 0 ? (<ul className="space-y-1">{sortedExpenses.slice(0, 50).map(exp => (<li key={exp.id} className="flex justify-between items-center p-2 rounded-md hover:bg-gray-100 dark:hover:bg-white/5 group"><div><p className="font-medium text-black dark:text-white">{exp.description}</p><p className="text-xs text-gray-500 dark:text-white/50">{getCategoryName(exp.categoryId)} · {getAccountName(exp.accountId)} · {parseDate(exp.date)?.toLocaleDateString() ?? 'Invalid Date'}</p></div><div className="flex items-center gap-3">{exp.amount > 0 ? (<span className="font-mono text-gray-700 dark:text-white/80">-{currencyFormatter.format(exp.amount)}</span>) : (<span className="font-mono text-green-600 dark:text-green-400">+{currencyFormatter.format(Math.abs(exp.amount))}</span>)}<div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">{exp.categoryId !== 'internal-transfer' && (<button onClick={() => openModal('editExpense', { ...exp, amount: Math.abs(exp.amount), date: dateToInputValue(exp.date) })} className="text-gray-500 dark:text-white/40 hover:text-black dark:hover:text-white" title="Edit Expense"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>)}<button onClick={() => handleDeleteExpense(exp)} className="text-gray-500 dark:text-white/40 hover:text-red-500" title="Delete Expense"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button></div></div></li>))}</ul>) : <div className="flex h-full items-center justify-center text-center text-gray-500 dark:text-white/40"><p>No transactions yet.</p></div>}</div></Card>
         </div>
       </div>
 
@@ -504,31 +454,14 @@ const WalletModule: React.FC = () => {
               { modal.type === 'withdrawFunds' && <> <h3 className="text-lg font-semibold tracking-tight mb-4">Withdraw from "{modal.data.name}"</h3> <div className="space-y-4"><div><label className="text-sm text-gray-600 dark:text-white/70 block mb-1">Amount (Max: {currencyFormatter.format(modal.data.savedAmount)})</label><Input name="amount" type="number" step="0.01" max={modal.data.savedAmount} onChange={handleFormChange} placeholder="0.00" required/></div><div><label className="text-sm text-gray-600 dark:text-white/70 block mb-1">To Account</label><Select name="destAccountId" value={formState.destAccountId || ''} onChange={handleFormChange} required>{accounts.filter(a => a.includeInBudget).map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}</Select></div></div></>}
               { modal.type === 'editExpense' && <> <h3 className="text-lg font-semibold tracking-tight mb-4">Edit Expense</h3> <div className="space-y-3"> <Input name="description" value={formState.description} onChange={handleFormChange} required/> <Input name="amount" type="number" step="0.01" value={formState.amount} onChange={handleFormChange} required/> <Input name="date" type="date" value={formState.date} onChange={handleFormChange} required/><Select name="categoryId" value={formState.categoryId} onChange={handleFormChange}>{categories.filter(c => c.id !== 'internal-transfer').map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}</Select> <Select name="accountId" value={formState.accountId} onChange={handleFormChange}>{accounts.map(acc => <option key={acc.id} value={acc.id}>{acc.name}</option>)}</Select> </div></>}
               
-              { modal.type !== 'aiAnalysis' &&
-                <div className="flex justify-end gap-3 pt-4 mt-2">
-                  <button type="button" onClick={closeModal} className="bg-gray-100 dark:bg-white/10 text-black dark:text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-200 dark:hover:bg-white/20">Cancel</button>
-                  <button type="submit" className={`px-4 py-2 rounded-md text-sm font-semibold ${['deleteAccount', 'deleteBudget'].includes(modal?.type) ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-white/90'}`}>
-                    { modal?.type === 'deleteAccount' ? 'Delete Account' : modal?.type === 'deleteBudget' ? 'Delete Goal' : 'Save Changes' }
-                  </button>
-                </div>
-              }
+              {/* Buttons */}
+              <div className="flex justify-end gap-3 pt-4 mt-2">
+                <button type="button" onClick={closeModal} className="bg-gray-100 dark:bg-white/10 text-black dark:text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-200 dark:hover:bg-white/20">Cancel</button>
+                <button type="submit" className={`px-4 py-2 rounded-md text-sm font-semibold ${['deleteAccount', 'deleteBudget'].includes(modal?.type) ? 'bg-red-600 text-white hover:bg-red-500' : 'bg-black dark:bg-white text-white dark:text-black hover:bg-gray-800 dark:hover:bg-white/90'}`}>
+                  { modal?.type === 'deleteAccount' ? 'Delete Account' : modal?.type === 'deleteBudget' ? 'Delete Goal' : 'Save Changes' }
+                </button>
+              </div>
             </form>
-
-            { modal.type === 'aiAnalysis' && (
-                <div>
-                  <h3 className="text-lg font-semibold tracking-tight mb-4 flex items-center gap-2"><AiIcon /> Spending Analysis</h3>
-                  {isAiLoading ? (
-                     <div className="flex items-center justify-center h-48">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black dark:border-white"></div>
-                     </div>
-                  ) : (
-                    <div className="text-sm text-gray-700 dark:text-white/80 max-h-80 overflow-y-auto whitespace-pre-wrap leading-relaxed">{aiAnalysis}</div>
-                  )}
-                   <div className="flex justify-end pt-4 mt-2">
-                     <button onClick={closeModal} className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-800 dark:hover:bg-white/90">Close</button>
-                   </div>
-                </div>
-            )}
           </div>
         </div>
       )}

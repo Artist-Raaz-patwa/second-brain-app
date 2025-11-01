@@ -1,8 +1,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useHabitData } from '../../hooks/useHabitData';
 import { useLocalStorage } from '../../hooks/useLocalStorage';
-import { GoogleGenAI } from '@google/genai';
-
 
 // --- Reusable Components --- //
 const DonutChart = ({ progress, size = 120, strokeWidth = 12, title }: { progress: number, size?: number, strokeWidth?: number, title: string }) => {
@@ -45,9 +43,6 @@ const HabitTrackerModule: React.FC = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [notes, setNotes] = useLocalStorage('secondbrain-habit-notes', '');
     const [editingHabit, setEditingHabit] = useState<any>(null);
-    const [showAiModal, setShowAiModal] = useState(false);
-    const [isAiLoading, setIsAiLoading] = useState(false);
-    const [aiAnalysis, setAiAnalysis] = useState('');
 
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth(); // 0-indexed month
@@ -116,33 +111,6 @@ const HabitTrackerModule: React.FC = () => {
         setEditingHabit(null);
     };
 
-    const handleAnalyzeHabits = async () => {
-        if (!process.env.API_KEY) {
-            alert("AI features are disabled. API key is not configured.");
-            return;
-        }
-        setShowAiModal(true);
-        setIsAiLoading(true);
-        setAiAnalysis('');
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const habitsData = habits.map(h => `- ${h.name} (Goal: ${h.goal} times/month)`).join('\n');
-            const prompt = `Analyze my habit performance for ${monthName} ${year}. My overall success rate was ${stats.overallSuccessRate.toFixed(0)}%. I completed ${stats.totalCompleted} out of a total goal of ${stats.totalGoalSum}. My monthly goals notes are: "${notes}".\n\nMy habits:\n${habitsData}\n\nProvide some encouraging feedback and one actionable suggestion for improvement. Keep it concise and format it neatly.`;
-            
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-pro',
-                contents: prompt,
-            });
-
-            setAiAnalysis(response.text);
-        } catch (error) {
-            console.error("AI Habit Analysis Error:", error);
-            setAiAnalysis("Sorry, an error occurred during analysis.");
-        } finally {
-            setIsAiLoading(false);
-        }
-    };
-
     const gridRef = useRef<HTMLDivElement>(null);
     useEffect(() => {
         if (isCurrentMonth && gridRef.current) {
@@ -153,8 +121,6 @@ const HabitTrackerModule: React.FC = () => {
             }
         }
     }, [isCurrentMonth, today]);
-
-    const AiIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 13a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1 5 0Z"/><path d="M19.5 13a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1 5 0Z"/><path d="M12 22a2.5 2.5 0 0 1-2.5-2.5V18h5v1.5A2.5 2.5 0 0 1 12 22Z"/><path d="M12 2a2.5 2.5 0 0 1 2.5 2.5V6h-5V4.5A2.5 2.5 0 0 1 12 2Z"/><path d="M18 12a2.5 2.5 0 0 1 0-5V4.5a2.5 2.5 0 0 0-5 0V6"/><path d="M6 12a2.5 2.5 0 0 0 0 5v2.5a2.5 2.5 0 0 0 5 0V18"/></svg>;
     
     return (
         <div className="h-full flex flex-col gap-4 text-black dark:text-white p-1">
@@ -166,9 +132,10 @@ const HabitTrackerModule: React.FC = () => {
                         <h2 className="text-lg font-semibold tracking-tight text-center">{monthName} {year}</h2>
                         <button onClick={() => handleMonthChange(1)} className="p-1 rounded-full hover:bg-gray-100 dark:hover:bg-white/10">&gt;</button>
                     </div>
-                     <button onClick={handleAnalyzeHabits} className="w-full mt-2 flex items-center justify-center gap-2 bg-gray-100 dark:bg-white/10 text-black dark:text-white px-3 py-1.5 rounded-md text-xs font-semibold hover:bg-gray-200 dark:hover:bg-white/20 transition-colors">
-                        <AiIcon /> Analyze Performance
-                    </button>
+                    <div className="flex justify-between text-xs text-gray-500 dark:text-white/50 mt-2">
+                        <span>Start: {new Date(year, month, 1).toLocaleDateString()}</span>
+                        <span>End: {new Date(year, month, daysInMonth).toLocaleDateString()}</span>
+                    </div>
                 </div>
                 <div className="bg-white dark:bg-black border border-gray-200 dark:border-white/10 rounded-lg p-4 flex flex-col justify-center col-span-1 md:col-span-2">
                     <div className="h-full">
@@ -285,25 +252,6 @@ const HabitTrackerModule: React.FC = () => {
                     <DonutChart progress={stats.momentum} title="Last 3 Days Momentum" />
                 </div>
             </div>
-
-            {/* AI Analysis Modal */}
-            {showAiModal && (
-                <div className="fixed inset-0 bg-black/60 dark:bg-black/80 flex items-center justify-center z-50" onClick={() => setShowAiModal(false)}>
-                    <div className="bg-white dark:bg-black border border-gray-300 dark:border-white/20 rounded-lg p-6 w-full max-w-md text-black dark:text-white" onClick={e => e.stopPropagation()}>
-                        <h3 className="text-lg font-semibold tracking-tight mb-4 flex items-center gap-2"><AiIcon /> Habit Performance Analysis</h3>
-                        {isAiLoading ? (
-                            <div className="flex items-center justify-center h-48">
-                                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black dark:border-white"></div>
-                            </div>
-                        ) : (
-                            <div className="text-sm text-gray-700 dark:text-white/80 max-h-80 overflow-y-auto whitespace-pre-wrap leading-relaxed">{aiAnalysis}</div>
-                        )}
-                        <div className="flex justify-end pt-4 mt-2">
-                            <button onClick={() => setShowAiModal(false)} className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-800 dark:hover:bg-white/90">Close</button>
-                        </div>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

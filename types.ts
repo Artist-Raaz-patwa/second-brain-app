@@ -87,24 +87,3 @@ export interface HabitLog {
   habitId: string;
   date: string; // YYYY-MM-DD
 }
-
-export interface GeneratedReport {
-    startDate: string;
-    endDate: string;
-    projects: {
-        [projectId: string]: {
-            project: Project;
-            completedTasks: Task[];
-        };
-    };
-    totals: {
-        totalValue: number;
-        totalHours: number;
-        totalMinutes: number;
-    };
-    companyBreakdown: {
-        companyName: string;
-        totalValue: number;
-    }[];
-    aiSummary?: string;
-}

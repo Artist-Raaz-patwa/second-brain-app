@@ -1,9 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useCRMData } from '../../hooks/useCRMData';
-import { Project, Task, Subtask, GeneratedReport } from '../../types';
+import { Project, Task, Subtask } from '../../types';
 import { useSettings } from '../../contexts/SettingsContext';
-import { GoogleGenAI } from '@google/genai';
-
 
 // --- ICONS --- //
 const ProjectIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"></polygon><polyline points="2 17 12 22 22 17"></polyline><polyline points="2 12 12 17 22 12"></polyline></svg>;
@@ -17,9 +15,28 @@ const TimeLogIcon = () => <svg xmlns="http://www.w3.org/2000/svg" className="w-4
 const ArchiveIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><line x1="10" y1="12" x2="14" y2="12"></line></svg>;
 const UnarchiveIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="21 8 21 21 3 21 3 8"></polyline><rect x="1" y="3" width="22" height="5"></rect><polyline points="10 12 12 10 14 12"></polyline><line x1="12" y1="10" x2="12" y2="16"></line></svg>;
 const ChevronIcon = (props: React.SVGProps<SVGSVGElement>) => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" {...props}><polyline points="6 9 12 15 18 9"></polyline></svg>;
-const AiIcon = () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9.5 13a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1 5 0Z"/><path d="M19.5 13a2.5 2.5 0 0 1-5 0 2.5 2.5 0 0 1 5 0Z"/><path d="M12 22a2.5 2.5 0 0 1-2.5-2.5V18h5v1.5A2.5 2.5 0 0 1 12 22Z"/><path d="M12 2a2.5 2.5 0 0 1 2.5 2.5V6h-5V4.5A2.5 2.5 0 0 1 12 2Z"/><path d="M18 12a2.5 2.5 0 0 1 0-5V4.5a2.5 2.5 0 0 0-5 0V6"/><path d="M6 12a2.5 2.5 0 0 0 0 5v2.5a2.5 2.5 0 0 0 5 0V18"/></svg>;
 
-type ModalType = 'addProject' | 'editProject' | 'deleteProject' | 'addTask' | 'editTask' | 'completeSubtask' | 'completeTask' | 'generateReport' | 'aiTaskSuggestions';
+interface GeneratedReport {
+    startDate: string;
+    endDate: string;
+    projects: {
+        [projectId: string]: {
+            project: Project;
+            completedTasks: Task[];
+        };
+    };
+    totals: {
+        totalValue: number;
+        totalHours: number;
+        totalMinutes: number;
+    };
+    companyBreakdown: {
+        companyName: string;
+        totalValue: number;
+    }[];
+}
+
+type ModalType = 'addProject' | 'editProject' | 'deleteProject' | 'addTask' | 'editTask' | 'completeSubtask' | 'completeTask' | 'generateReport';
 
 const PieChart = ({ data, currencyFormatter }: { data: { companyName: string, totalValue: number }[], currencyFormatter: Intl.NumberFormat }) => {
     const total = data.reduce((sum, item) => sum + item.totalValue, 0);
@@ -79,27 +96,18 @@ const CRMModule: React.FC = () => {
     const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
     const [modal, setModal] = useState<{ type: ModalType; data?: any } | null>(null);
     const [formState, setFormState] = useState<any>({});
-    const [projectFilter, setProjectFilter] = useState<'active' | 'archived' | 'all'>('active');
+    const [showArchived, setShowArchived] = useState(false);
     const [showCompletedTasks, setShowCompletedTasks] = useState(false);
     const [generatedReport, setGeneratedReport] = useState<GeneratedReport | null>(null);
     
-    // AI State
-    const [isAiLoading, setIsAiLoading] = useState(false);
-    const [aiSuggestions, setAiSuggestions] = useState<string>('');
-    
     useEffect(() => {
-        const visibleProjects = projects.filter(p => {
-            if (projectFilter === 'all') return true;
-            if (projectFilter === 'archived') return p.isArchived;
-            return !p.isArchived;
-        });
-
-        const activeProjectIsVisible = visibleProjects.some(p => p.id === activeProjectId);
-
-        if (!activeProjectId || !activeProjectIsVisible) {
-            setActiveProjectId(visibleProjects.length > 0 ? visibleProjects[0].id : null);
+        const activeProjectExists = projects.some(p => p.id === activeProjectId);
+        
+        if (!activeProjectExists || (projects.find(p => p.id === activeProjectId)?.isArchived && !showArchived)) {
+            const firstAvailableProject = projects.find(p => (showArchived ? true : !p.isArchived));
+            setActiveProjectId(firstAvailableProject ? firstAvailableProject.id : null);
         }
-    }, [projects, activeProjectId, projectFilter]);
+    }, [projects, activeProjectId, showArchived]);
 
     const activeProject = useMemo(() => projects.find(p => p.id === activeProjectId), [projects, activeProjectId]);
     
@@ -151,7 +159,6 @@ const CRMModule: React.FC = () => {
     const closeModal = () => {
         setModal(null);
         setFormState({});
-        setAiSuggestions('');
     };
 
     const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
@@ -261,51 +268,6 @@ const CRMModule: React.FC = () => {
             }
         }
         closeModal();
-    };
-
-    const handleSuggestTasks = async () => {
-        if (!activeProject || !process.env.API_KEY) return;
-        openModal('aiTaskSuggestions');
-        setIsAiLoading(true);
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const existingTasks = tasks.filter(t => t.projectId === activeProject.id).map(t => `- ${t.title} (${t.status})`).join('\n');
-            const prompt = `Given the project "${activeProject.name}" with the description "${activeProject.description}" and the following existing tasks:\n${existingTasks}\n\nSuggest 3-5 next logical tasks to move the project forward. Be concise. Provide only a bulleted list of task titles. Do not add any introductory text.`;
-            
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-pro',
-                contents: prompt,
-            });
-
-            setAiSuggestions(response.text);
-        } catch (error) {
-            console.error("AI Task Suggestion Error:", error);
-            setAiSuggestions("- Sorry, an error occurred while generating suggestions.");
-        } finally {
-            setIsAiLoading(false);
-        }
-    };
-    
-    const handleAnalyzeReport = async () => {
-        if (!generatedReport || !process.env.API_KEY) return;
-        setIsAiLoading(true);
-        try {
-            const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-            const reportString = `Total Value: ${currencyFormatter.format(generatedReport.totals.totalValue)}\nTotal Time: ${generatedReport.totals.totalHours}h ${generatedReport.totals.totalMinutes}m\n\nProjects:\n${Object.values(generatedReport.projects).map(p => ` - ${p.project.name} (${p.project.companyName}): ${p.completedTasks.length} tasks completed.`).join('\n')}`;
-            const prompt = `Analyze the following work report summary and provide a brief, professional overview (2-3 sentences). Highlight key achievements and financial performance. The report is for the period ${generatedReport.startDate} to ${generatedReport.endDate}.\n\nReport Data:\n${reportString}`;
-            
-            const response = await ai.models.generateContent({
-                model: 'gemini-2.5-pro',
-                contents: prompt,
-            });
-
-            setGeneratedReport(prev => prev ? { ...prev, aiSummary: response.text } : null);
-        } catch (error) {
-            console.error("AI Report Analysis Error:", error);
-            setGeneratedReport(prev => prev ? { ...prev, aiSummary: "An error occurred during AI analysis." } : null);
-        } finally {
-            setIsAiLoading(false);
-        }
     };
     
     const Input = (props: React.InputHTMLAttributes<HTMLInputElement>) => <input {...props} className="w-full bg-white dark:bg-black border border-gray-300 dark:border-white/20 rounded-md px-3 py-2 text-sm text-black dark:text-white placeholder:text-gray-500 dark:placeholder:text-white/50 focus:outline-none focus:ring-2 focus:ring-black/50 dark:focus:ring-white/50" />;
@@ -421,11 +383,8 @@ const CRMModule: React.FC = () => {
         );
     };
     
-    const filteredProjects = useMemo(() => projects.filter(p => {
-        if (projectFilter === 'all') return true;
-        if (projectFilter === 'archived') return p.isArchived === true;
-        return !(p.isArchived ?? false);
-    }), [projects, projectFilter]);
+    const activeProjects = useMemo(() => projects.filter(p => !(p.isArchived ?? false)), [projects]);
+    const archivedProjects = useMemo(() => projects.filter(p => p.isArchived === true), [projects]);
 
     return (
         <>
@@ -481,16 +440,15 @@ const CRMModule: React.FC = () => {
                 {/* Project List Column */}
                 <div className="w-full lg:w-1/3 bg-white dark:bg-black border border-gray-200 dark:border-white/10 rounded-lg flex flex-col h-80 lg:h-auto">
                     <div className="p-4 border-b border-gray-200 dark:border-white/10 flex-shrink-0 flex justify-between items-center">
-                        <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/10 p-1 rounded-lg">
-                            <button onClick={() => setProjectFilter('active')} className={`px-2 py-1 text-xs font-semibold rounded-md transition-colors ${projectFilter === 'active' ? 'bg-white dark:bg-black text-black dark:text-white' : 'text-gray-600 dark:text-white/60'}`}>Active</button>
-                            <button onClick={() => setProjectFilter('archived')} className={`px-2 py-1 text-xs font-semibold rounded-md transition-colors ${projectFilter === 'archived' ? 'bg-white dark:bg-black text-black dark:text-white' : 'text-gray-600 dark:text-white/60'}`}>Archived</button>
-                            <button onClick={() => setProjectFilter('all')} className={`px-2 py-1 text-xs font-semibold rounded-md transition-colors ${projectFilter === 'all' ? 'bg-white dark:bg-black text-black dark:text-white' : 'text-gray-600 dark:text-white/60'}`}>All</button>
+                        <h3 className="text-lg font-semibold tracking-tight">Projects</h3>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => setShowArchived(!showArchived)} className="text-gray-500 dark:text-white/60 hover:text-black dark:hover:text-white text-xs px-2 py-1 rounded-md bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20">{showArchived ? 'Hide' : 'Show'} Archived</button>
+                          <button onClick={() => openModal('addProject')} className="bg-black text-white dark:bg-white dark:text-black px-3 py-1 rounded-md text-sm font-semibold hover:bg-gray-800 dark:hover:bg-white/90 transition-colors">+ New</button>
                         </div>
-                        <button onClick={() => openModal('addProject')} className="bg-black text-white dark:bg-white dark:text-black px-3 py-1 rounded-md text-sm font-semibold hover:bg-gray-800 dark:hover:bg-white/90 transition-colors">+ New</button>
                     </div>
                     <div className="overflow-y-auto p-2">
-                        {filteredProjects.length > 0 ? (
-                            <ul>{filteredProjects.map(proj => {
+                        {activeProjects.length > 0 ? (
+                            <ul>{activeProjects.map(proj => {
                                 const projectTasks = tasks.filter(t => t.projectId === proj.id);
                                 const completedTasksCount = projectTasks.filter(t => t.status === 'Done').length;
                                 const progress = projectTasks.length > 0 ? (completedTasksCount / projectTasks.length) * 100 : 0;
@@ -502,7 +460,23 @@ const CRMModule: React.FC = () => {
                                     </button></li>
                                 )
                             })}</ul>
-                        ) : (<div className="text-center p-8 text-gray-400 dark:text-white/40"><p>No projects found.</p></div>)}
+                        ) : (<div className="text-center p-8 text-gray-400 dark:text-white/40"><p>No active projects.</p></div>)}
+                        
+                        {showArchived && archivedProjects.length > 0 && (
+                          <>
+                            <h5 className="px-3 pt-4 pb-2 text-xs font-semibold text-gray-400 dark:text-white/40 uppercase tracking-wider">Archived</h5>
+                            <ul>{archivedProjects.map(proj => (
+                                <li key={proj.id}><button onClick={() => setActiveProjectId(proj.id)} className={`w-full text-left p-3 rounded-md transition-colors space-y-2 opacity-60 ${activeProjectId === proj.id ? 'bg-gray-100 dark:bg-white/10' : 'hover:bg-gray-50 dark:hover:bg-white/5'}`}>
+                                    <h4 className="font-semibold text-black dark:text-white truncate">{proj.name}</h4>
+                                    <p className="text-sm text-gray-500 dark:text-white/50 truncate">{proj.companyName || 'No company'}</p>
+                                </button></li>
+                            ))}</ul>
+                          </>
+                        )}
+
+                        {projects.length === 0 && (
+                            <div className="text-center p-8 text-gray-400 dark:text-white/40"><p>No projects yet.</p><p>Click "+ New" to start.</p></div>
+                        )}
                     </div>
                 </div>
 
@@ -536,10 +510,7 @@ const CRMModule: React.FC = () => {
                             {/* Task List */}
                             <div className="flex justify-between items-center">
                                 <h3 className="text-lg font-semibold tracking-tight text-black dark:text-white">Tasks</h3>
-                                <div className="flex items-center gap-2">
-                                    <button onClick={handleSuggestTasks} className="flex items-center gap-2 bg-gray-100 dark:bg-white/10 text-black dark:text-white px-3 py-1 rounded-md text-sm font-semibold hover:bg-gray-200 dark:hover:bg-white/20 transition-colors"><AiIcon /> Suggest Tasks</button>
-                                    <button onClick={() => openModal('addTask')} className="bg-black text-white dark:bg-white dark:text-black px-3 py-1 rounded-md text-sm font-semibold hover:bg-gray-800 dark:hover:bg-white/90 transition-colors">+ Add Task</button>
-                                </div>
+                                <button onClick={() => openModal('addTask')} className="bg-black text-white dark:bg-white dark:text-black px-3 py-1 rounded-md text-sm font-semibold hover:bg-gray-800 dark:hover:bg-white/90 transition-colors">+ Add Task</button>
                             </div>
                             <div className="space-y-3">
                                 {activeTasks.map(task => <TaskCard key={task.id} task={task} />)}
@@ -593,17 +564,6 @@ const CRMModule: React.FC = () => {
                             {new Date(generatedReport.startDate + 'T12:00:00Z').toLocaleDateString()} - {new Date(generatedReport.endDate + 'T12:00:00Z').toLocaleDateString()}
                         </p>
                         
-                        {generatedReport.aiSummary ? (
-                            <div className="bg-gray-50 dark:bg-white/5 p-4 rounded-lg mb-6 border border-gray-200 dark:border-white/10">
-                                <h2 className="text-lg font-semibold mb-2 flex items-center gap-2"><AiIcon /> AI Summary</h2>
-                                <p className="text-sm text-gray-700 dark:text-white/80 whitespace-pre-wrap">{generatedReport.aiSummary}</p>
-                            </div>
-                        ) : (
-                             <button onClick={handleAnalyzeReport} disabled={isAiLoading} className="w-full flex items-center justify-center gap-2 bg-gray-100 dark:bg-white/10 text-black dark:text-white px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-200 dark:hover:bg-white/20 mb-6 disabled:opacity-50">
-                                {isAiLoading ? 'Analyzing...' : <><AiIcon /> Analyze with AI</>}
-                             </button>
-                        )}
-
                         <div className="grid grid-cols-2 gap-6 mb-8 border-t border-b border-gray-200 dark:border-white/10 py-6">
                             <div>
                                 <p className="text-sm text-gray-500 dark:text-white/60">Total Value</p>
@@ -699,22 +659,6 @@ const CRMModule: React.FC = () => {
                                 <button type="button" onClick={handleGenerateReport} className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-800 dark:hover:bg-white/90">Generate</button>
                             </div>
                         </>}
-
-                        {modal.type === 'aiTaskSuggestions' && (
-                            <div>
-                                <h3 className="text-lg font-semibold tracking-tight mb-4 flex items-center gap-2"><AiIcon /> Suggested Tasks</h3>
-                                {isAiLoading ? (
-                                    <div className="flex items-center justify-center h-24">
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-black dark:border-white"></div>
-                                    </div>
-                                ) : (
-                                    <ul className="text-sm text-gray-700 dark:text-white/80 list-disc pl-5 space-y-1">{aiSuggestions.split('\n').map((line, i) => line.trim() && <li key={i}>{line.replace(/^- /, '')}</li>)}</ul>
-                                )}
-                                <div className="flex justify-end pt-4 mt-2">
-                                    <button onClick={closeModal} className="bg-black dark:bg-white text-white dark:text-black px-4 py-2 rounded-md text-sm font-semibold hover:bg-gray-800 dark:hover:bg-white/90">Close</button>
-                                </div>
-                            </div>
-                        )}
                     </form>
                 </div>
             </div>
